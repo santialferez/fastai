@@ -127,11 +127,18 @@ def _cl_int_from_learner(cls, learn:Learner, ds_type:DatasetType=DatasetType.Val
     preds = learn.TTA(ds_type=ds_type, with_loss=True) if tta else learn.get_preds(ds_type=ds_type, with_loss=True)
     return cls(learn, *preds, ds_type=ds_type)
 
-def _cl_int_plot_top_losses(self, k, largest=True, figsize=(12,12), heatmap:bool=True, heatmap_thresh:int=16,
+def _cl_int_plot_top_losses(self, k, largest=True, figsize=(12,12), heatmap:bool=True, heatmap_thresh:int=16, pclass:str=None,
                             return_fig:bool=None)->Optional[plt.Figure]:
     "Show images in `top_losses` along with their prediction, actual, loss, and probability of actual class."
     tl_val,tl_idx = self.top_losses(k, largest)
-    classes = self.data.classes
+    classes = self.data.classes    
+    if pclass:
+        pclass_i = self.data.dl(self.ds_type).dataset.c2i[pclass]
+        dataset = self.data.dl(self.ds_type).dataset[tl_idx]
+        pclass_idx = dataset.y.items==pclass_i
+        k = sum(pclass_idx)
+        tl_idx = tl_idx.numpy()[pclass_idx]
+        tl_val = tl_val.numpy()[pclass_idx]    
     cols = math.ceil(math.sqrt(k))
     rows = math.ceil(k/cols)
     fig,axes = plt.subplots(rows, cols, figsize=figsize)
@@ -155,6 +162,8 @@ def _cl_int_plot_top_losses(self, k, largest=True, figsize=(12,12), heatmap:bool
                 mult = F.relu(((acts*grad_chan[...,None,None])).sum(0))
                 sz = list(im.shape[-2:])
                 axes.flat[i].imshow(mult, alpha=0.6, extent=(0,*sz[::-1],0), interpolation='bilinear', cmap='magma')                
+    for ax in axes.flatten()[len(tl_idx)-len(axes.flatten()):]:
+        ax.set_axis_off()
     if ifnone(return_fig, defaults.return_fig): return fig
 
 def _cl_int_plot_multi_top_losses(self, samples:int=3, figsize:Tuple[int,int]=(8,8), save_misclassified:bool=False):
